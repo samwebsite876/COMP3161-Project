@@ -5,9 +5,10 @@ app = Flask(__name__)
 
 db = mysql.connector.connect(
     host="localhost",
-    user="root",
-    password="",
-    database="course_management"
+    user="api_user",
+    password="$e@Rch876",
+    database="coursemanagement",
+    auth_plugin='mysql_native_password'
 )
 
 @app.route('/register', methods=['POST'])
@@ -27,8 +28,8 @@ def register_user():
     cursor = db.cursor()
 
     try:
-        query = "INSERT INTO users (userid, password, role) VALUES (%s, %s, %s)"
-        cursor.execute(query, (userid, password, role))
+        query = "INSERT INTO users (user_id, first_name, last_name, password, role, email) VALUES (%s, %s, %s, %s, %s, %s)"
+        cursor.execute(query, (userid, 'First', 'Last', password, role, f"{userid}@uwi.edu"))
         db.commit()
         return jsonify({"message": "User registered successfully"}), 201
     except mysql.connector.Error as err:
@@ -49,7 +50,7 @@ def login_user():
 
     cursor = db.cursor(dictionary=True)
 
-    query = "SELECT * FROM users WHERE userid = %s AND password = %s"
+    query = "SELECT * FROM users WHERE user_id = %s AND password = %s"
     cursor.execute(query, (userid, password))
     user = cursor.fetchone()
     cursor.close()
@@ -59,7 +60,7 @@ def login_user():
             "message": "Login successful",
             "user": {
                 "user_id": user["user_id"],
-                "userid": user["userid"],
+                "userid": user["user_id"],
                 "role": user["role"]
             }
         }), 200
@@ -100,10 +101,10 @@ def create_course():
 
     try:
         insert_query = """
-            INSERT INTO courses (course_code, course_name, lecturer_id, created_by)
+            INSERT INTO courses (course_code, course_name, description, lecturer_id)
             VALUES (%s, %s, %s, %s)
         """
-        cursor.execute(insert_query, (course_code, course_name, lecturer_id, created_by))
+        cursor.execute(insert_query, (course_code, course_name, '', lecturer_id))
         db.commit()
         return jsonify({"message": "Course created successfully"}), 201
     except mysql.connector.Error as err:
@@ -117,7 +118,7 @@ def get_all_courses():
     cursor = db.cursor(dictionary=True)
 
     query = """
-        SELECT c.course_id, c.course_code, c.course_name, u.userid AS lecturer_name
+        SELECT c.course_id, c.course_code, c.course_name, u.user_id AS lecturer_name
         FROM courses c
         LEFT JOIN users u ON c.lecturer_id = u.user_id
     """
@@ -128,13 +129,13 @@ def get_all_courses():
     return jsonify(courses), 200
 
 
-@app.route('/students/<int:student_id>/courses', methods=['GET'])
+@app.route('/students/<student_id>/courses', methods=['GET'])
 def get_student_courses(student_id):
     cursor = db.cursor(dictionary=True)
 
     query = """
         SELECT c.course_id, c.course_code, c.course_name
-        FROM course_registrations cr
+        FROM enrollments cr
         JOIN courses c ON cr.course_id = c.course_id
         WHERE cr.student_id = %s
     """
@@ -145,7 +146,7 @@ def get_student_courses(student_id):
     return jsonify(courses), 200
 
 
-@app.route('/lecturers/<int:lecturer_id>/courses', methods=['GET'])
+@app.route('/lecturers/<lecturer_id>/courses', methods=['GET'])
 def get_lecturer_courses(lecturer_id):
     cursor = db.cursor(dictionary=True)
 
@@ -188,7 +189,7 @@ def register_for_course(course_id):
         return jsonify({"error": "Course not found"}), 404
 
     duplicate_check = """
-        SELECT * FROM course_registrations
+        SELECT * FROM enrollments
         WHERE student_id = %s AND course_id = %s
     """
     cursor.execute(duplicate_check, (student_id, course_id))
@@ -200,12 +201,141 @@ def register_for_course(course_id):
 
     try:
         insert_query = """
-            INSERT INTO course_registrations (student_id, course_id)
+            INSERT INTO enrollments (student_id, course_id)
             VALUES (%s, %s)
         """
         cursor.execute(insert_query, (student_id, course_id))
         db.commit()
         return jsonify({"message": "Student registered for course successfully"}), 201
+    except mysql.connector.Error as err:
+        return jsonify({"error": str(err)}), 500
+    finally:
+        cursor.close()
+
+@app.route('/sections', methods=['POST'])
+def create_section():
+    data = request.get_json()
+
+    course_id = data.get('course_id')
+    title = data.get('title')
+
+    cursor = db.cursor()
+
+    query = "INSERT INTO course_sections (course_id, title) VALUES (%s, %s)"
+    cursor.execute(query, (course_id, title))
+    db.commit()
+
+    return jsonify({"message": "Section created"}), 201
+
+@app.route('/content', methods=['POST'])
+def add_content():
+    data = request.get_json()
+
+    section_id = data.get('section_id')
+    title = data.get('title')
+    content_type = data.get('content_type')
+    content_url = data.get('content_url')
+    uploaded_by = data.get('uploaded_by')
+
+    cursor = db.cursor()
+
+    query = """
+        INSERT INTO course_content 
+        (section_id, title, content_type, content_url, uploaded_by)
+        VALUES (%s, %s, %s, %s, %s)
+    """
+    cursor.execute(query, (section_id, title, content_type, content_url, uploaded_by))
+    db.commit()
+
+    return jsonify({"message": "Content added"}), 201
+
+@app.route('/courses/<int:course_id>/content', methods=['GET'])
+def get_course_content(course_id):
+    cursor = db.cursor(dictionary=True)
+
+    query = """
+        SELECT cs.title AS section, cc.title, cc.content_type, cc.content_url
+        FROM course_sections cs
+        JOIN course_content cc ON cs.section_id = cc.section_id
+        WHERE cs.course_id = %s
+    """
+
+    cursor.execute(query, (course_id,))
+    results = cursor.fetchall()
+
+    return jsonify(results), 200
+
+@app.route('/assignments', methods=['POST'])
+def create_assignment():
+    data = request.get_json()
+
+    course_id = data.get('course_id')
+    title = data.get('title')
+    description = data.get('description')
+    due_date = data.get('due_date')
+    created_by = data.get('created_by')
+
+    cursor = db.cursor()
+
+    query = """
+        INSERT INTO assignments 
+        (course_id, title, description, due_date, created_by)
+        VALUES (%s, %s, %s, %s, %s)
+    """
+    cursor.execute(query, (course_id, title, description, due_date, created_by))
+    db.commit()
+
+    return jsonify({"message": "Assignment created"}), 201
+
+@app.route('/submit', methods=['POST'])
+def submit_assignment():
+    data = request.get_json()
+
+    assignment_id = data.get('assignment_id')
+    student_id = data.get('student_id')
+    file_url = data.get('file_url')
+
+    cursor = db.cursor()
+
+    query = """
+        INSERT INTO submissions 
+        (assignment_id, student_id, submission_text, submission_file)
+        VALUES (%s, %s, %s, %s)
+    """
+    cursor.execute(query, (assignment_id, student_id, 'Submission content', file_url))
+    db.commit()
+
+    return jsonify({"message": "Submitted"}), 201
+
+@app.route('/grade', methods=['POST'])
+def grade_assignment():
+    data = request.get_json()
+
+    submission_id = data.get('submission_id')
+    grade = data.get('grade')
+    graded_by = data.get('graded_by')
+
+    # Validate input
+    if not submission_id or grade is None or not graded_by:
+        return jsonify({"error": "submission_id, grade, and graded_by are required"}), 400
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM submissions WHERE submission_id = %s", (submission_id,))
+    submission = cursor.fetchone()
+
+    if not submission:
+        cursor.close()
+        return jsonify({"error": "Submission not found"}), 404
+
+    try:
+        update_query = """
+            UPDATE submissions
+            SET grade = %s, graded_by = %s, graded_at = NOW()
+            WHERE submission_id = %s
+        """
+        cursor.execute(update_query, (grade, graded_by, submission_id))
+        db.commit()
+        return jsonify({"message": f"Submission {submission_id} graded successfully"}), 200
     except mysql.connector.Error as err:
         return jsonify({"error": str(err)}), 500
     finally:
