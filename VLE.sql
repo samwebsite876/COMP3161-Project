@@ -35,6 +35,7 @@ CREATE TABLE course_sections (
     section_id INT AUTO_INCREMENT PRIMARY KEY,
     course_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
+    order_num INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 );
@@ -58,6 +59,48 @@ CREATE TABLE assignments (
     due_date DATE,
     max_score INT,
     created_by VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+CREATE TABLE discussion_replies (
+    reply_id INT AUTO_INCREMENT PRIMARY KEY,
+    thread_id INT NOT NULL,
+    content TEXT NOT NULL,
+    author_id VARCHAR(20) NOT NULL,
+    parent_reply_id INT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (thread_id) REFERENCES discussion_threads(thread_id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES users(user_id),
+    FOREIGN KEY (parent_reply_id) REFERENCES discussion_replies(reply_id) ON DELETE CASCADE
+);
+
+CREATE TABLE discussion_threads (
+    thread_id INT AUTO_INCREMENT PRIMARY KEY,
+    forum_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    author_id VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (forum_id) REFERENCES forums(forum_id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE forums (
+    forum_id INT AUTO_INCREMENT PRIMARY KEY,
+    course_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+);
+
+CREATE TABLE calendar_events (
+    event_id INT AUTO_INCREMENT PRIMARY KEY,
+    course_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    event_date DATETIME NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 );
