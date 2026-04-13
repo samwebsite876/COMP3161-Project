@@ -63,16 +63,13 @@ CREATE TABLE assignments (
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 );
 
-CREATE TABLE discussion_replies (
-    reply_id INT AUTO_INCREMENT PRIMARY KEY,
-    thread_id INT NOT NULL,
-    content TEXT NOT NULL,
-    author_id VARCHAR(20) NOT NULL,
-    parent_reply_id INT DEFAULT NULL,
+CREATE TABLE forums (
+    forum_id INT AUTO_INCREMENT PRIMARY KEY,
+    course_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (thread_id) REFERENCES discussion_threads(thread_id) ON DELETE CASCADE,
-    FOREIGN KEY (author_id) REFERENCES users(user_id),
-    FOREIGN KEY (parent_reply_id) REFERENCES discussion_replies(reply_id) ON DELETE CASCADE
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 );
 
 CREATE TABLE discussion_threads (
@@ -86,13 +83,16 @@ CREATE TABLE discussion_threads (
     FOREIGN KEY (author_id) REFERENCES users(user_id)
 );
 
-CREATE TABLE forums (
-    forum_id INT AUTO_INCREMENT PRIMARY KEY,
-    course_id INT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
+CREATE TABLE discussion_replies (
+    reply_id INT AUTO_INCREMENT PRIMARY KEY,
+    thread_id INT NOT NULL,
+    content TEXT NOT NULL,
+    author_id VARCHAR(20) NOT NULL,
+    parent_reply_id INT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+    FOREIGN KEY (thread_id) REFERENCES discussion_threads(thread_id) ON DELETE CASCADE,
+    FOREIGN KEY (author_id) REFERENCES users(user_id),
+    FOREIGN KEY (parent_reply_id) REFERENCES discussion_replies(reply_id) ON DELETE CASCADE
 );
 
 CREATE TABLE calendar_events (
@@ -118,7 +118,7 @@ CREATE TABLE submissions (
     FOREIGN KEY (assignment_id) REFERENCES assignments(assignment_id) ON DELETE CASCADE
 );
 
-
+--Views
 CREATE VIEW courses_50_plus AS
 SELECT course_id, COUNT(student_id) AS total_students
 FROM enrollments
@@ -146,12 +146,10 @@ ORDER BY total_students DESC
 LIMIT 10;
 
 CREATE VIEW top_10_students AS
-SELECT s.student_id,
-       AVG(g.grade) AS avg_grade
-FROM submissions s
-JOIN grades g ON s.submission_id = g.submission_id
-GROUP BY s.student_id
+SELECT u.user_id, u.first_name, u.last_name, AVG(s.grade) AS avg_grade
+FROM users u
+JOIN submissions s ON u.user_id = s.student_id
+WHERE u.role = 'student' AND s.grade IS NOT NULL
+GROUP BY u.user_id
 ORDER BY avg_grade DESC
 LIMIT 10;
-
-
